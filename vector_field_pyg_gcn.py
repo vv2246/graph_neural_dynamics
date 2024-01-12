@@ -9,7 +9,7 @@ import warnings
 import random
 from torch_geometric.nn import GCNConv, ChebConv, SAGEConv
 from torch_geometric.utils import from_networkx
-
+from tqdm import tqdm
 
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, model_name = "GCNConv"):
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     # plt.show()
     model_name = "SAGEConv"
     model = "SIS"
-    A = torch.FloatTensor(np.array(nx.adjacency_matrix(G).todense()))
+    A = torch.FloatTensor(np.array(nx.adjacency_matrix(G).todense())).to(device)
     
     # dynamics
     if model == "MAK":
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         train_distr.sample([size]).to(device)
         x0 = train_distr.sample([size]).to(device) # features 
         y0 = dyn(0, x0) # labels 
-        sample_data = from_networkx(G)
+        sample_data = from_networkx(G).to(device)
         sample_data.x = x0
         sample_data.y = y0
         training_data.append(sample_data)
@@ -91,7 +91,8 @@ if __name__ == "__main__":
     
     ## training 
     optimizer = torch.optim.Adam(func.parameters(), lr=0.01, weight_decay=0)
-    for itr in range(501):
+    epochs = 500
+    for itr in tqdm(range(epochs)):
         optimizer.zero_grad()
         
         pred_y = [func(d) for d in training_data]
@@ -116,28 +117,28 @@ if __name__ == "__main__":
         # Flatten the meshgrid arrays for processing
         X_flat = X.flatten()
         Y_flat = Y.flatten()
-        xy = torch.stack((X_flat, Y_flat))
+        xy = torch.stack((X_flat, Y_flat)).to(device)
         
         # Compute the vector field
         g = dyn(0, xy)
-        Fx = np.array(g[0,:]).reshape(X.shape)
-        Fy = np.array(g[1,:]).reshape(Y.shape)
+        Fx = np.array(g[0, :].cpu()).reshape(X.shape)
+        Fy = np.array(g[1, :].cpu()).reshape(Y.shape)
         
         func.eval()
         g_pred = []
         for i in range(xy.shape[1]):
-            data = from_networkx(G)
+            data = from_networkx(G).to(device)
             data.x = xy[:,i][:,None]
             g_pred.append(func(data))
             
         g_pred = torch.stack(g_pred).squeeze().T
-        Fx_pred = np.array(g_pred[0,:]).reshape(X.shape)
-        Fy_pred = np.array(g_pred[1,:]).reshape(Y.shape)
+        Fx_pred = np.array(g_pred[0, :].cpu()).reshape(X.shape)
+        Fy_pred = np.array(g_pred[1, :].cpu()).reshape(Y.shape)
             
         fig, ax = plt.subplots()
         ax.streamplot(X.numpy(), Y.numpy(), Fx, Fy, color="royalblue", density=0.8, arrowstyle='->', arrowsize=1.5)
         ax.streamplot(X.numpy(), Y.numpy(), Fx_pred, Fy_pred, color="hotpink", density=0.8, arrowstyle='->', arrowsize=1.5)
-        ax.scatter(torch.stack(x_train).T.squeeze()[0,:],torch.stack(x_train).T.squeeze()[1,:], s= 5, c= "k")
+        ax.scatter(torch.stack(x_train).T.squeeze()[0,:].cpu(),torch.stack(x_train).T.squeeze()[1,:].cpu(), s= 5, c= "k")
         ax.set_ylim(0,2)
         ax.set_xlim(0,2)
         fig.suptitle(model+ " GNN " + model_name+ f", error: {round(float(torch.abs(g_pred - g).mean()),2)}")

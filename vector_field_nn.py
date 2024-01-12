@@ -10,7 +10,7 @@ import warnings
 # from utilities import set_seeds
 from NeuralPsi import ODEFunc
 import random
-
+from tqdm import tqdm
 
     
 class SimpleFullNN(nn.Module):
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     # nx.draw(g)
     # plt.show()
     model = "MAK"
-    A = torch.FloatTensor(np.array(nx.adjacency_matrix(g).todense()))
+    A = torch.FloatTensor(np.array(nx.adjacency_matrix(g).todense())).to(device)
     
     # dynamics
     if model == "MAK":
@@ -84,11 +84,12 @@ if __name__ == "__main__":
     warnings.filterwarnings('ignore')
     nn_model = "NN"
     
-    func = SimpleFullNN(2, 60)
+    func = SimpleFullNN(2, 60).to(device)
     ## training 
     optimizer = torch.optim.Adam(func.parameters(), lr=0.01, weight_decay=0.)
-        
-    for itr in range(501):
+    epochs = 500
+
+    for itr in tqdm(range(epochs)):
         optimizer.zero_grad()
         pred_y = [func(0, x_train[i][:,None]) for i in range(train_samples)]
         
@@ -109,22 +110,22 @@ if __name__ == "__main__":
     # Flatten the meshgrid arrays for processing
     X_flat = X.flatten()
     Y_flat = Y.flatten()
-    xy = torch.stack((X_flat, Y_flat))
+    xy = torch.stack((X_flat, Y_flat)).to(device)
     
     # Compute the vector field
     g = dyn(0, xy)
-    Fx = np.array(g[0,:]).reshape(X.shape)
-    Fy = np.array(g[1,:]).reshape(Y.shape)
+    Fx = np.array(g[0,:].cpu()).reshape(X.shape)
+    Fy = np.array(g[1,:].cpu()).reshape(Y.shape)
     
     
     g_pred = torch.vstack([func(0,xy[:,i][:,None,None]).detach().squeeze() for i in range(xy.shape[1])]).T
-    Fx_pred = np.array(g_pred[0,:]).reshape(X.shape)
-    Fy_pred = np.array(g_pred[1,:]).reshape(Y.shape)
+    Fx_pred = np.array(g_pred[0,:].cpu()).reshape(X.shape)
+    Fy_pred = np.array(g_pred[1,:].cpu()).reshape(Y.shape)
         
     fig, ax = plt.subplots()
     ax.streamplot(X.numpy(), Y.numpy(), Fx, Fy, color="royalblue", density=0.8, arrowstyle='->', arrowsize=1.5)
     ax.streamplot(X.numpy(), Y.numpy(), Fx_pred, Fy_pred, color="hotpink", density=0.8, arrowstyle='->', arrowsize=1.5)
-    ax.scatter(torch.stack(x_train).T.squeeze()[0,:],torch.stack(x_train).T.squeeze()[1,:], s= 5, c= "k")
+    ax.scatter(torch.stack(x_train).T.squeeze()[0, :].cpu(), torch.stack(x_train).T.squeeze()[1, :].cpu(), s=5, c="k")
     ax.set_ylim(0,2)
     ax.set_xlim(0,2)
     fig.suptitle(model+ " "+ nn_model + f", error: {round(float(torch.abs(g_pred - g).mean()),2)}")
