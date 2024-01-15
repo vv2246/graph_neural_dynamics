@@ -23,11 +23,8 @@ for dynamics_name in ["Diffusion","MAK", "MM","PD","SIS"]:
                   ]:
         A, params, func, x_train,y_train  = load_results(f"models/neural_network_{model}_dynamics_{dynamics_name}_graph_size_10")
         
-        if dynamics_name == "Diffusion":
-            pytorch_total_params = sum(p.numel() for p in func.parameters() if p.requires_grad)
-        else:
-            pytorch_total_params = ""
-        if "single" in model or "NeuralPsi":
+        pytorch_total_params = sum(p.numel() for p in func.parameters() if p.requires_grad)
+        if "single" in model:
             print( " & " , "\\cmark", " & ", pytorch_total_params , end  = " & " )
         else:
             print(model , " & " , "\\xmark", " & ", pytorch_total_params , end  = " & " )

@@ -141,7 +141,7 @@ if __name__ == "__main__":
             if params.model_name == "NeuralPsi":
                 pred_y = [func(0, x_train[i][:,None]) for i in range(params.train_samples)]
                 true_y = y_train
-                v1= torch.squeeze(torch.cat(pred_y,1),2)
+                v1 = torch.squeeze(torch.cat(pred_y,1),2)
                 v2 = torch.cat(y_train,1)
                 # loss =torch.abs(v1-v2).mean()
                 
