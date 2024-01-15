@@ -135,6 +135,7 @@ if __name__ == "__main__":
         ## training 
         optimizer = torch.optim.Adam(func.parameters(), lr=params.lr, weight_decay=params.weight_decay)
         epochs = params.epochs
+        reg_lambda = 0.0
     
         for itr in tqdm(range(epochs)):
             optimizer.zero_grad()
@@ -147,7 +148,7 @@ if __name__ == "__main__":
                 
                 # weigh wrt to variance in the loss
                 variance_reg = torch.abs(v1-v2).var(0).mean()
-                loss = torch.abs(v1-v2).mean() + variance_reg
+                loss = torch.abs(v1-v2).mean() + reg_lambda*variance_reg
             else:
                 pred_y = [func(d) for d in training_data]
                 true_y = [d.y for d in training_data]

@@ -14,14 +14,14 @@ torch.manual_seed(42)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
 warnings.filterwarnings('ignore')
-for dynamics_name in ["Diffusion","MAK", "MM","PD","SIS"]:
+for dynamics_name in ["MAK", "MM","PD","SIS"]:#"Diffusion",
     print("---", dynamics_name , "---")
     for model in ["NeuralPsi", "SAGEConv","SAGEConv_single", "ChebConv",
                   "ChebConv_single", "GraphConv", "GraphConv_single",
                   "ResGatedGraphConv", "ResGatedGraphConv_single",
                   "GATConv", "GATConv_single",
                   ]:
-        A, params, func, x_train,y_train  = load_results(f"models/neural_network_{model}_dynamics_{dynamics_name}_graph_size_10")
+        A, params, func, x_train,y_train  = load_results(f"models/neural_network_{model}_dynamics_{dynamics_name}_graph_size_10", device)
         
         pytorch_total_params = sum(p.numel() for p in func.parameters() if p.requires_grad)
         if "single" in model:
@@ -34,17 +34,17 @@ for dynamics_name in ["Diffusion","MAK", "MM","PD","SIS"]:
                     # take new graph
                     test_size = 20
                     G_test = nx.erdos_renyi_graph(test_size, 0.5)
-                    A_test = torch.FloatTensor(np.array(nx.adjacency_matrix(G_test).todense()))
+                    A_test = torch.FloatTensor(np.array(nx.adjacency_matrix(G_test).todense())).to(device)
                 else: 
                     test_size = params.size
-                    A_test = A
-                    G_test = nx.from_numpy_array(np.array(A))
+                    A_test = A.to(device)
+                    G_test = nx.from_numpy_array(np.array(A.cpu()))
                     
                 if test_dist == True:
                     test_distr= torch.distributions.Uniform(0.5,1.5)#torch.distributions.Beta(torch.FloatTensor([1]),torch.FloatTensor([1])) + 
-                    xy = test_distr.sample([test_size, 500 ]).squeeze()
+                    xy = test_distr.sample([test_size, 500 ]).squeeze().to(device)
                 else:
-                    xy = params.train_distr.sample([test_size, 500 ]).squeeze()
+                    xy = params.train_distr.sample([test_size, 500 ]).squeeze().to(device)
                 
                 # dynamics
                 if params.dynamics_name == "MAK":
@@ -73,6 +73,7 @@ for dynamics_name in ["Diffusion","MAK", "MM","PD","SIS"]:
                     dyn_test = Dynamics(A=A_test, B= params.B, R = params.R, H=params.H,   model = params.dynamics_name)
                 
                 # Compute the vector field
+                dyn_test = dyn_test.to(device)
                 g = dyn_test(0, xy)
                 
                 if params.model_name == "NeuralPsi":
@@ -80,7 +81,7 @@ for dynamics_name in ["Diffusion","MAK", "MM","PD","SIS"]:
                 else:
                     g_pred = []
                     for i in range(xy.shape[1]):
-                        data = from_networkx(G_test)
+                        data = from_networkx(G_test).to(device)
                         data.x = xy[:,i][:,None]
                         g_pred.append(func(data))
                     

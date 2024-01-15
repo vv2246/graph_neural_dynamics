@@ -115,7 +115,7 @@ class ModelParameters:
     H: float = np.nan
     B: float = np.nan
 
-def load_results(folder):
+def load_results(folder, device):
 
     # graph adjacency
     adj = torch.load(f'{folder}/adjacency_matrix.pt')
@@ -128,12 +128,12 @@ def load_results(folder):
         func = ODEFunc(A = adj, d= training_params.d, 
                     h = training_params.h, 
                     h2 = training_params.h2, bias = training_params.bias , Q_factorized = training_params.Q_factorized,
-                    h3 = training_params.h3 )
+                    h3 = training_params.h3 ).to(device)
     elif "single" in training_params.model_name:
-        func = GCN_single(in_channels = 1, hidden_channels=training_params.h, out_channels= 1, model_name = training_params.model_name)#.to(device)
+        func = GCN_single(in_channels = 1, hidden_channels=training_params.h, out_channels= 1, model_name = training_params.model_name).to(device)
         
     else:
-        func = GCN(in_channels = 1, hidden_channels=training_params.h, out_channels= 1, model_name = training_params.model_name)#.to(device)
+        func = GCN(in_channels = 1, hidden_channels=training_params.h, out_channels= 1, model_name = training_params.model_name).to(device)
         
     func.load_state_dict(torch.load(folder +"/neural_network.pth"))
     
