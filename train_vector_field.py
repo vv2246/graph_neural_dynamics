@@ -33,7 +33,7 @@ if __name__ == "__main__":
     
             
     # setup training object
-    for model_name in ["GCNConv_single"]:
+    for model_name in ["NeuralPsi"]:
     # ["NeuralPsi", 
     #                    "SAGEConv","SAGEConv_single",  "GraphConv", "GraphConv_single",
     #               "ResGatedGraphConv", "ResGatedGraphConv_single",
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     #          "ChebConv_single" ]:
             
         params = ModelParameters(
-            dynamics_name = "Diffusion",
+            dynamics_name = "MAK",
             model_name =model_name,
             train_distr= torch.distributions.Beta(torch.FloatTensor([5]),torch.FloatTensor([2])),
             epochs = 1000,
@@ -143,7 +143,11 @@ if __name__ == "__main__":
                 true_y = y_train
                 v1= torch.squeeze(torch.cat(pred_y,1),2)
                 v2 = torch.cat(y_train,1)
-                loss =torch.abs(v1-v2).mean()
+                # loss =torch.abs(v1-v2).mean()
+                
+                # weigh wrt to variance in the loss
+                variance_reg = torch.abs(v1-v2).var(0).mean()
+                loss = torch.abs(v1-v2).mean() + variance_reg
             else:
                 pred_y = [func(d) for d in training_data]
                 true_y = [d.y for d in training_data]
