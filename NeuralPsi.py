@@ -5,7 +5,7 @@ import numpy as np
 
 class ODEFunc(nn.Module):
 
-    def __init__(self, A, d, h, h2, h3, h4, bias = True, Q_factorized = True):
+    def __init__(self, A, d, h, h2, h3, bias = True, Q_factorized = True):
         super(ODEFunc, self).__init__()
 
         self.A = A
