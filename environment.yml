@@ -1,0 +1,16 @@
+name: deepNN
+channels:
+  - defaults
+dependencies:
+  - python=3.9
+  - torchvision
+  - pytorch-cuda=11.7
+  - torchaudio
+  - jupyter
+  - networkx=2.8.4
+  - scipy=1.9.1
+  - matplotlib
+  - tqdm
+  - pytorch
+  - pyg
+prefix: /home/nino/.conda/envs/deepNN
