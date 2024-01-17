@@ -14,7 +14,7 @@ torch.manual_seed(42)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
 warnings.filterwarnings('ignore')
-for dynamics_name in ["MAK", "MM","PD","SIS"]:#
+for dynamics_name in ["Diffusion","MAK", "MM","PD","SIS"]:#
     print("---", dynamics_name , "---")
     for model in ["NeuralPsi", "SAGEConv","SAGEConv_single", "ChebConv",
                   "ChebConv_single", "GraphConv", "GraphConv_single",

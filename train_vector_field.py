@@ -130,7 +130,7 @@ if __name__ == "__main__":
 
 
             ## training
-            optimizer = torch.optim.AdamW(func.parameters(), lr=params.lr, weight_decay=params.weight_decay)
+            optimizer = torch.optim.Adam(func.parameters(), lr=params.lr, weight_decay=params.weight_decay)
             epochs = params.epochs
             reg_lambda = 0.1
 
