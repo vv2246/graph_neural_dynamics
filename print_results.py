@@ -16,18 +16,15 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 warnings.filterwarnings('ignore')
 for dynamics_name in ["Diffusion","MAK", "MM","PD","SIS"]:#
     print("---", dynamics_name , "---")
-    for model in ["NeuralPsi", "SAGEConv","SAGEConv_single", "ChebConv",
-                  "ChebConv_single", "GraphConv", "GraphConv_single",
-                  "ResGatedGraphConv", "ResGatedGraphConv_single",
-                  "GATConv", "GATConv_single",
-                  ]:
+    # for model in ["NeuralPsi", "SAGEConv","GraphConv","ResGatedGraphConv","GATConv","ChebConv"]:
+    for model in ["SAGEConv_single",   "GraphConv_single", "ResGatedGraphConv_single", "GATConv_single","ChebConv_single" ]:
         A, params, func, x_train,y_train  = load_results(f"models/neural_network_{model}_dynamics_{dynamics_name}_graph_size_10", device)
-        
+
         pytorch_total_params = sum(p.numel() for p in func.parameters() if p.requires_grad)
-        if "single" in model:
-            print( " & " , "\\cmark", " & ", pytorch_total_params , end  = " & " )
-        else:
-            print(model , " & " , "\\xmark", " & ", pytorch_total_params , end  = " & " )
+        # if "single" in model:
+        #     print( " & " , "\\cmark", " & ", pytorch_total_params , end  = " & " )
+        # else:
+        print(model , " & ", pytorch_total_params , end  = " & " )
         for (test_with_new_graph, test_dist) in [(False, False), (False, True), (True, False)]:
             with torch.no_grad():
                 if test_with_new_graph :
@@ -44,7 +41,10 @@ for dynamics_name in ["Diffusion","MAK", "MM","PD","SIS"]:#
                     test_distr= torch.distributions.Uniform(0.5,1.5)#torch.distributions.Beta(torch.FloatTensor([1]),torch.FloatTensor([1])) + 
                     xy = test_distr.sample([test_size, 500 ]).squeeze().to(device)
                 else:
-                    xy = params.train_distr.sample([test_size, 500 ]).squeeze().to(device)
+                    if test_with_new_graph :
+                        xy = params.train_distr.sample([test_size, 500 ]).squeeze().to(device)
+                    else:
+                        xy = torch.hstack(x_train).to(device)
                 
                 # dynamics
                 if params.dynamics_name == "MAK":

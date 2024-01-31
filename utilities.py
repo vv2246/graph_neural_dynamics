@@ -115,7 +115,7 @@ class ModelParameters:
     H: float = np.nan
     B: float = np.nan
 
-def load_results(folder, device):
+def load_results(folder, device, load_data = False):
 
     # graph adjacency
     adj = torch.load(f'{folder}/adjacency_matrix.pt')
@@ -137,9 +137,12 @@ def load_results(folder, device):
         
     func.load_state_dict(torch.load(folder +"/neural_network.pth"))
     
-    
-    with open(f"{folder}/training_data.pkl", "rb") as f:
-        x_train, y_train = pickle.load(f)    
+    if load_data:
+        with open(f"{folder}/training_data.pkl", "rb") as f:
+            x_train, y_train = pickle.load(f)   
+    else:
+        x_train, y_train = None, None
+        
     
     return adj, training_params, func,x_train, y_train
 

@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import networkx as nx
 # import torch.nn.functional as F
+import torchdiffeq
 
 class Dynamics_individual(nn.Module):
     """
@@ -89,6 +90,14 @@ class Dynamics(nn.Module):
         self.model = model
         self.self_interaction = self_interaction
         self.nbr_interaction = nbr_interaction
+        self.in_degree = A.sum(0)[:,None]
+
+        if model == "RO":
+            
+            self.epsilon = 0.1
+            self.a = 0.35
+            self.b = 0.2
+            self.c = -5.7
 
     def forward(self, t, x, debug__= False):
         """
@@ -111,6 +120,7 @@ class Dynamics(nn.Module):
             # dynamics of gene regulation. 
             F_self = -self.B * x 
             F_nbr = self.R * torch.mm(self.A, x ** self.H / (x ** self.H + 1))
+            # print(F_nbr)
             
         if self.model == "SIS":
             F_self = - self.B * x
@@ -119,12 +129,70 @@ class Dynamics(nn.Module):
         if self.model =="Diffusion":
             F_self = 0 * x 
             F_nbr =  - torch.mm(self.L, x) * self.B
+            
+            
+        if self.model == "RO":
+            x1,x2,x3 = x[:,0][:,None], x[:,1][:,None], x[:,2][:,None]
+            x1j = x[:,0][:,None]
+            F_nbr = torch.mm(self.L, x1j) 
+            F1 = - x2 - x3 + F_nbr * self.epsilon
+            F2 = x1 + self.a* x2
+            F3 = self.b + x3*(x1 + self.c)
+            f = torch.vstack([F1.squeeze(),F2.squeeze(),F3.squeeze()]).T
+            
+            # x1 = x[:, 0:1]
+            # F_nbr = torch.mm(self.L, x1) 
+            # F1 = -x[:, 1:2] - x[:, 2:3] + F_nbr * self.epsilon
+            # F2 = x1 + self.a * x[:, 1:2]
+            # F3 = self.b + x[:, 2:3] * (x1 + self.c)
+            # f = torch.cat([F1, F2, F3], dim=1)
+            
+        if self.model =="FHN":
+            epsilon = 1
+            a = 0.28 
+            b = 0.5 
+            c = -0.04
+            x1,x2 = x[:,0][:,None], x[:,1][:,None]
+            x1j = x[:,0][:,None]
+            F_nbr = - torch.mm(self.L, x1j) / self.in_degree
+            F1 = x1 - x1**3 - x2 - epsilon * F_nbr
+            # print(F1.shape )
+            F2 = a + b * x1 + c * x2
+            # print(F1.shape, F2.shape, self.in_degree.shape)
+            f = torch.vstack([F1.squeeze(),F2.squeeze()]).T
+            # print(f.shape)
+            
+            
+        if self.model == "HR":
+            Iext = 3.24 # external current 
+            Vsyn = 2
+            Lambda = 10
+            Omegasyn = 1
+            c = 1
+            u = 5
+            r = 0.005
+            x0 = -1.6
+            epsilon = 0.30
+            # epsilon2 = -0.15
+            a = 1
+            b = 3
+            s=4
+            x1,x2,x3 = x[:,0][:,None], x[:,1][:,None], x[:,2][:,None]
+            x1j = x[:,0][:,None]
+            mu = (1+ torch.exp(-(Lambda * (x1j - Omegasyn ))))**(-1)
+            F_nbr =  epsilon * (Vsyn - x1) * torch.mm(self.A, mu)
+            
+            F1 = x2 - a* (x1**3) + b * (x1**2) - x3  + Iext + F_nbr
+            F2 = c - u * (x1**2) - x2
+            F3 = r* ( s* (x1-x0) - x2)
+            f = torch.vstack([F1.squeeze(),F2.squeeze(),F3.squeeze()]).T
         
-        f = 0
-        if self.self_interaction == True:
-            f += F_self
-        if self.nbr_interaction == True: 
-            f += F_nbr
+        if self.model not in [ "HR" ,"RO","FHN"]:
+            f = 0
+            if self.self_interaction == True:
+                f += F_self
+            if self.nbr_interaction == True: 
+                f += F_nbr
         return f
 
 
@@ -163,23 +231,43 @@ class ChaoticDynamics(nn.Module):
 if __name__ == "__main__":
 
     import numpy as np
-    n=4
+    n=3
 
-    A = torch.FloatTensor(np.matrix('0 -1 0 1; 1 0 0 1; 1 1 0 -1; 0 -1 1 0'))
+    A = torch.FloatTensor(np.matrix('0 1 0; 0 0 1;1 1 0'))
     b = torch.FloatTensor(np.matrix('0.0043;0.0043;0.0043;0.0043'))
-    dyn = Dynamics(A=A)
-    dyn = Dynamics_individual(A=A)
-    x0 = torch.FloatTensor(np.matrix('1.2;0.4;1.2;-1'))
+    dyn = Dynamics(A=A, model  = "FHN")
+    # dyn = Dynamics_individual(A=A)
+    x0 = torch.rand([n,2])
     
     ###dynamics
-    T=500
-    time_tick= 500
+    T=60
+    time_tick= 200
     t = torch.linspace(0., T, time_tick)
     
     dyn(0,x0)
-    # solution_numerical = torchdiffeq.odeint(dyn, x0, t, method='dopri5').squeeze().t()
+    solution_numerical = torchdiffeq.odeint( dyn, x0, t, method="dopri5")
+    
+        
+    plt.plot(solution_numerical[:,0,0])
+    plt.plot(solution_numerical[:,0,1])
+    # plt.plot(solution_numerical[:,0,2])
+    plt.show()
+    
+    plt.plot(solution_numerical[:,1,0])
+    plt.plot(solution_numerical[:,1,1])
+    # plt.plot(solution_numerical[:,1,2])
+    
+    plt.show()
+    
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.plot(solution_numerical[:, 0, 0].numpy(), solution_numerical[:,0, 1].numpy(), solution_numerical[:,0, 2].numpy())
+    
     # print(f"numerical solution {solution_numerical.shape}")
     # plt.plot(solution_numerical.T)
     # plt.show()
     # plt.plot(solution_numerical[1,:], solution_numerical[0,:])
     # plt.show()
+    
+    
+    

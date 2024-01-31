@@ -14,7 +14,8 @@ random.seed(42)
 torch.manual_seed(42)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-A, params, func, x_train,y_train  = load_results("models/neural_network_NeuralPsi_dynamics_MAK_graph_size_10")
+A, params, func, x_train,y_train  = load_results("models/neural_network_SAGEConv_dynamics_MAK_graph_size_2", device)
+# A, params, func, x_train,y_train  = load_results("models/neural_network_NeuralPsi_dynamics_MAK_graph_size_2", device)
 
 test_with_new_graph = False
 with torch.no_grad():
@@ -29,8 +30,8 @@ with torch.no_grad():
         G_test = nx.from_numpy_array(np.array(A))
     
     # Ensure x and y are meshgrid outputs
-    x = torch.linspace(0, 2, 10)
-    y = torch.linspace(0, 2, 10)
+    x = torch.linspace(0, 2, 30)
+    y = torch.linspace(0, 2, 30)
     X, Y = torch.meshgrid(x, y, indexing = 'xy')
     
     # # Flatten the meshgrid arrays for processing
@@ -90,11 +91,38 @@ with torch.no_grad():
         Fy_pred = np.array(g_pred[1,:]).reshape(Y.shape)
         
 
-fig, ax = plt.subplots()
-ax.streamplot(X.numpy(), Y.numpy(), Fx, Fy, color="royalblue", density=0.8, arrowstyle='->', arrowsize=1.5)
-ax.streamplot(X.numpy(), Y.numpy(), Fx_pred, Fy_pred, color="hotpink", density=0.8, arrowstyle='->', arrowsize=1.5)
+plt.rcParams.update({'font.size': 15})
+fig, ax = plt.subplots(figsize = (5,5))
+ax.streamplot(X.numpy(), Y.numpy(), Fx, Fy, color="royalblue", density=1.5, arrowstyle='->', arrowsize=1.5,zorder =0)
+ax.streamplot(X.numpy(), Y.numpy(), Fx_pred, Fy_pred, color="hotpink", density=1.5, arrowstyle='->', arrowsize=1.5,zorder =0)
+ax.scatter(torch.hstack(x_train)[0],torch.hstack(x_train)[1], c = "k", marker = "x", zorder = 1,linewidths = 0.8)
 ax.set_ylim(0,2)
 ax.set_xlim(0,2)
+ax.set_ylabel("$x_2$")
+ax.set_xlabel("$x_1$")
+ax.set_yticks(np.linspace(0,2,6))
+ax.set_xticks(np.linspace(0,2,6))
+ax.set_title(params.dynamics_name + " "+ params.model_name )#+ f", error: {round(float(torch.abs(g_pred - g).mean()),2)}")
+# ax.set_title(params.model_name + params.dynamics_name+ " "+ params.model_name + f", error: {round(float(torch.abs(g_pred - g).mean()),2)}")
 
-fig.suptitle(params.dynamics_name+ " "+ params.model_name + f", error: {round(float(torch.abs(g_pred - g).mean()),2)}")
+plt.tight_layout()
+plt.savefig(f"figures/{params.model_name}_{params.dynamics_name}.pdf")
 plt.show()
+
+fig, ax = plt.subplots(figsize = (5,5))
+# if params.size == 2:
+#     ax.scatter(torch.hstack(x_train)[0],torch.hstack(x_train)[1], c = "k", marker = "x", zorder = 1,linewidths = 0.8)
+im = ax.pcolormesh(X.numpy(),Y.numpy(), (abs(Fx - Fx_pred) + abs(Fy - Fy_pred))/(((Fx )**2 + (Fy)**2)**0.5), cmap=plt.cm.get_cmap('rainbow'), )
+ax.set_title("Loss" )
+im.set_clim(0, 3)
+# ax.scatter(torch.hstack(x_train)[0],torch.hstack(x_train)[1], c = "k", marker = "x", zorder = 1,linewidths = 0.8)
+ax.set_ylabel("$x_2$")
+ax.set_xlabel("$x_1$")
+ax.set_yticks(np.linspace(0,2,6))
+ax.set_xticks(np.linspace(0,2,6))
+fig.colorbar(im, ax=ax)
+
+plt.tight_layout()
+plt.savefig(f"figures/{params.model_name}_{params.dynamics_name}_loss.pdf")
+plt.show()
+

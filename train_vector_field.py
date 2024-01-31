@@ -21,7 +21,7 @@ if __name__ == "__main__":
     torch.manual_seed(42)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    
+    number_train_samples = 200
     size = 10
     if size == 2:
         G = nx.Graph()
@@ -31,18 +31,23 @@ if __name__ == "__main__":
         G = nx.erdos_renyi_graph(size, 0.5)
         A = torch.FloatTensor(np.array(nx.adjacency_matrix(G).todense())).to(device)
     
-    gcn_models = ["NeuralPsi", "SAGEConv","SAGEConv_single",  "GraphConv", "GraphConv_single","ResGatedGraphConv", "ResGatedGraphConv_single","GATConv", "GATConv_single","ChebConv","ChebConv_single" ]
+    # gcn_models = ["NeuralPsi", "SAGEConv","GraphConv","ResGatedGraphConv","GATConv","ChebConv"]#,
+    gcn_models = ["SAGEConv_single",   "GraphConv_single", "ResGatedGraphConv_single","GATConv_single","ChebConv_single" ]
     dynamics_models = ["MAK", "MM","PD","SIS","Diffusion"]
     # setup training object
+    
+    train_distr= torch.distributions.Beta(torch.FloatTensor([5]),torch.FloatTensor([2]))
+    train_samples = [train_distr.sample([size]).to(device) for i in range(number_train_samples)]
     for model_name in gcn_models:
         for dynamics_name in dynamics_models:
             print(model_name,dynamics_name)
+            
             params = ModelParameters(
                 dynamics_name = dynamics_name,
                 model_name =model_name,
-                train_distr= torch.distributions.Beta(torch.FloatTensor([5]),torch.FloatTensor([2])),
+                train_distr= train_distr,
                 epochs = 1000,
-                train_samples = 200,
+                train_samples = number_train_samples,
                 size = size,
                 lr = 0.005,  # learning rate for training
                 weight_decay = 0, # weight decay for training
@@ -88,7 +93,8 @@ if __name__ == "__main__":
                                     bias = True,  Q_factorized= True).to(device)
                 for i in range(params.train_samples):
                     params.train_distr.sample([params.size]).to(device)
-                    x0 = params.train_distr.sample([params.size]).to(device)
+                    # x0 = params.train_distr.sample([params.size]).to(device)
+                    x0 = train_samples[i].to(device)
                     y_train.append(dyn(0, x0))
                     x_train.append(x0)
 
@@ -99,7 +105,8 @@ if __name__ == "__main__":
                 training_data = []
                 for i in range(params.train_samples):
                     params.train_distr.sample([params.size]).to(device)
-                    x0 = params.train_distr.sample([params.size]).to(device) # features
+                    # x0 = params.train_distr.sample([params.size]).to(device) # features
+                    x0 = train_samples[i].to(device)
                     y0 = dyn(0, x0) # labels
                     sample_data = from_networkx(G).to(device)
                     sample_data.x = x0
@@ -117,7 +124,8 @@ if __name__ == "__main__":
                 training_data = []
                 for i in range(params.train_samples):
                     params.train_distr.sample([params.size]).to(device)
-                    x0 = params.train_distr.sample([params.size]).to(device) # features
+                    # x0 = params.train_distr.sample([params.size]).to(device) # features
+                    x0 = train_samples[i].to(device)
                     y0 = dyn(0, x0) # labels
                     sample_data = from_networkx(G).to(device)
                     sample_data.x = x0
