@@ -35,7 +35,7 @@ if __name__ == "__main__":
         # trajectories = False
         
     dynamics_name = "FHN"
-    network_name = "celegans_directed_wcc"
+    network_name = "erdos_renyi_N_100_p_0.1"
     model_name = "NeuralPsi"
     results_root = f"results/{dynamics_name}_{network_name}_multiple_nn_{multiple_nn}"
     g = nx.read_gml(f"graphs/{network_name}.gml")
