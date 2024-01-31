@@ -35,22 +35,23 @@ if __name__ == "__main__":
         # trajectories = False
         
     dynamics_name = "FHN"
-    network_name = "erdos_renyi_N_100_p_0.1"
+    network_name = "celegans_directed_wcc"
     model_name = "NeuralPsi"
     results_root = f"results/{dynamics_name}_{network_name}_multiple_nn_{multiple_nn}"
     g = nx.read_gml(f"graphs/{network_name}.gml")
+    # g = g.to_undirected()
     A = torch.FloatTensor(np.array(nx.adjacency_matrix(g).todense()))
     
-    regularizer_lambda = 1.0 # regularizer that minimizes variance in the loss across nodes
+    regularizer_lambda = 10.0 # regularizer that minimizes variance in the loss across nodes
     params = ModelParameters(
         dynamics_name = dynamics_name,
         model_name =model_name,
         train_distr= torch.distributions.Beta(torch.FloatTensor([1]),torch.FloatTensor([1])),
-        epochs = 1000,
-        train_samples = 6000,
+        epochs = 3000,
+        train_samples = 2000,
         size = A.shape[0],
-        lr = 0.005,  # learning rate for training
-        weight_decay = 0, # weight decay for training
+        lr = 0.002,  # learning rate for training
+        weight_decay = 0.001, # weight decay for training
         h = 30, #self interaction embedding dim
         h2 = 30 ,#nbr interaction embedding dim
         h3 = 0,
@@ -91,7 +92,7 @@ if __name__ == "__main__":
     # Generate data
     ######
     dt_base = 10**-2
-    T = 30
+    T = 40
     t = torch.linspace(0,T, int(T/dt_base))
     scale_obs = 0.0
     y_nonoise = []
@@ -104,7 +105,7 @@ if __name__ == "__main__":
         
         x0 = torch.rand([params.size,params.d])
             
-        y = odeint( dyn, x0, t, method="dopri5")
+        y = odeint( dyn, x0, t, method="rk4",rtol=1e-7, atol=1e-8)
         try:
             m = torch.distributions.normal.Normal(loc = 0, scale = scale_obs)
             noise = m.sample(y.shape)
@@ -139,15 +140,15 @@ if __name__ == "__main__":
     #####
     # Training
     #####
-    nsample = 300
-    for exp_iter in range(M_tot):
+    nsample = 200
+    for exp_iter in range(2,M_tot):
         print(exp_iter)
         func = models[exp_iter]
         optimizer = torch.optim.Adam(func.parameters(), lr=params.lr, weight_decay=params.weight_decay)
         scheduler = ReduceLROnPlateau(optimizer, 'min', patience= 50, cooldown=10)
         x_train_exp = x_train_tot[exp_iter]
         y_train_exp = y_train_tot[exp_iter]
-        for itr in range(params.epochs+1):
+        for itr in range(1601):
             optimizer.zero_grad()
             # take bootstrapped sample 
             index = torch.randint(0,n_bootstrap,(1,nsample))

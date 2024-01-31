@@ -91,6 +91,7 @@ class Dynamics(nn.Module):
         self.self_interaction = self_interaction
         self.nbr_interaction = nbr_interaction
         self.in_degree = A.sum(0)[:,None]
+        # self.epsilon = torch.ones()
 
         if model == "RO":
             
@@ -155,6 +156,9 @@ class Dynamics(nn.Module):
             x1,x2 = x[:,0][:,None], x[:,1][:,None]
             x1j = x[:,0][:,None]
             F_nbr = - torch.mm(self.L, x1j) / self.in_degree
+            F_nbr = torch.where(torch.isfinite(F_nbr), F_nbr, torch.tensor([0.0]))
+
+            # print((F_nbr))
             F1 = x1 - x1**3 - x2 - epsilon * F_nbr
             # print(F1.shape )
             F2 = a + b * x1 + c * x2
@@ -232,16 +236,17 @@ if __name__ == "__main__":
 
     import numpy as np
     n=3
+    d=2
 
-    A = torch.FloatTensor(np.matrix('0 1 0; 0 0 1;1 1 0'))
+    A = torch.FloatTensor(np.matrix('0 1 0; 0 0 0;1 1 0'))
     b = torch.FloatTensor(np.matrix('0.0043;0.0043;0.0043;0.0043'))
     dyn = Dynamics(A=A, model  = "FHN")
     # dyn = Dynamics_individual(A=A)
-    x0 = torch.rand([n,2])
+    x0 = torch.rand([n,d])
     
     ###dynamics
-    T=60
-    time_tick= 200
+    T=30
+    time_tick= 100
     t = torch.linspace(0., T, time_tick)
     
     dyn(0,x0)

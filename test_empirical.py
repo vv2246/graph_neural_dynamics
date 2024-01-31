@@ -34,7 +34,7 @@ random.seed(42)
 torch.manual_seed(42)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-A, params, func, x_train,y_train  = load_results("results/FHN_erdos_renyi_N_100_p_0.1_multiple_nn_True_0", device)
+A, params, func, x_train,y_train  = load_results("results/FHN_celegans_directed_wcc_multiple_nn_True_1", device)
 
 dt_base = 10**-2
 T = 50
