@@ -45,7 +45,7 @@ x0_test = torch.rand([params.size,params.d])
 y = odeint( dyn, x0_test, t, method="dopri5")
 y_test = odeint( func,  x0_test[:,None],t,method = "dopri5").squeeze().detach()
 
-plot_y_ytest(t,y,y_test, "Train graph")
+plot_y_ytest(t,y,y_test, "Train graph",idx = 20)
 
 
 
