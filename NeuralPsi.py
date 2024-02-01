@@ -23,8 +23,12 @@ class ODEFunc(nn.Module):
         self.g = nn.Sequential(
             nn.Linear(d, h, bias = bias),
             nn.Tanh(),
-            #nn.Linear(h, h, bias = bias),
-            #nn.Tanh(),
+            nn.Linear(h, h, bias = bias),
+            nn.Tanh(),
+            nn.Linear(h, h, bias = bias),
+            nn.Tanh(),
+            nn.Linear(h, h, bias = bias),
+            nn.Tanh(),
             nn.Linear(h, d, bias = bias),
         )
 
@@ -35,12 +39,20 @@ class ODEFunc(nn.Module):
             self.nn_fun1 = nn.Sequential(
                 nn.Linear(d, h2, bias = bias),
                 nn.Tanh(),
-                #nn.Linear(h2, h2, bias = bias),
+                nn.Linear(h2, h2, bias = bias),
+                nn.Tanh(),
+                nn.Linear(h2, h2, bias = bias),
+                nn.Tanh(),
+                nn.Linear(h2, h2, bias = bias),
             )
             self.nn_fun2 = nn.Sequential(
                 nn.Linear(d, h2, bias = bias),
                 nn.Tanh(),
-                #nn.Linear(h2, h2, bias = bias),
+                nn.Linear(h2, h2, bias = bias),
+                nn.Tanh(),
+                nn.Linear(h2, h2, bias = bias),
+                nn.Tanh(),
+                nn.Linear(h2, h2, bias = bias),
             )
             # self.invariant_pooling_layer = lambda x: torch.sum(x, dim=1)[:, None]
             self.agg_input_min = 0.0

@@ -24,34 +24,42 @@ if __name__ == "__main__":
     
     multiple_nn = True
     if multiple_nn:
-        M_tot = 20
-        bootstrap_fraction = 0.5
-        results_root = "results/multiple_nn"
-        # trajectories = True # FOR MULTIPLE NEURAL NETWORKS AND TRAJECTORY TEST DATA
+        M_tot = 1
+        bootstrap_fraction = 0.9
     else:
         M_tot = 1
         bootstrap_fraction  = 1
-        results_root = "results/dynamic_weights"
-        # trajectories = False
         
     dynamics_name = "FHN"
     network_name = "celegans_directed_wcc"
+    # network_name = "erdos_renyi_N_10_p_0.1"
     model_name = "NeuralPsi"
     results_root = f"results/{dynamics_name}_{network_name}_multiple_nn_{multiple_nn}"
     g = nx.read_gml(f"graphs/{network_name}.gml")
-    # g = g.to_undirected()
-    A = torch.FloatTensor(np.array(nx.adjacency_matrix(g).todense()))
     
-    regularizer_lambda = 10.0 # regularizer that minimizes variance in the loss across nodes
+    # d= nx. DiGraph()
+    # for i,j in g.edges():
+    #     if random.random()<0.5:
+    #         d.add_edge(i,j)
+    #     else:
+    #         d.add_edge(j,i)
+            
+        
+    
+    A = torch.FloatTensor(np.array(nx.adjacency_matrix(g).todense()))
+    L = A / A.sum(0)
+    L[torch.isnan(L)] = 0
+    
+    regularizer_lambda = 1.0 # regularizer that minimizes variance in the loss across nodes
     params = ModelParameters(
         dynamics_name = dynamics_name,
         model_name =model_name,
         train_distr= torch.distributions.Beta(torch.FloatTensor([1]),torch.FloatTensor([1])),
-        epochs = 3000,
+        epochs = 10000,
         train_samples = 2000,
         size = A.shape[0],
         lr = 0.002,  # learning rate for training
-        weight_decay = 0.001, # weight decay for training
+        weight_decay = 0.00, # weight decay for training
         h = 30, #self interaction embedding dim
         h2 = 30 ,#nbr interaction embedding dim
         h3 = 0,
@@ -92,20 +100,22 @@ if __name__ == "__main__":
     # Generate data
     ######
     dt_base = 10**-2
-    T = 40
+    T = 100
     t = torch.linspace(0,T, int(T/dt_base))
     scale_obs = 0.0
     y_nonoise = []
     y_train = []
     x_train = []
     t_train = []
-    niter = 1#int( params.train_samples / t.shape[0] )
+    niter = 5#int( params.train_samples / t.shape[0] )
     
     for i in range(niter):
         
         x0 = torch.rand([params.size,params.d])
             
-        y = odeint( dyn, x0, t, method="rk4",rtol=1e-7, atol=1e-8)
+        y = odeint( dyn, x0, t, method="dopri5")#[20000:]
+        plt.plot(y[:,0,0])
+        plt.show()
         try:
             m = torch.distributions.normal.Normal(loc = 0, scale = scale_obs)
             noise = m.sample(y.shape)
@@ -121,7 +131,7 @@ if __name__ == "__main__":
                 
     ntrain = len(y_train)
     n_bootstrap = int(bootstrap_fraction * ntrain)
-
+    print("integrated")
     #########################
     # do bootstrap of DATA
     #########################
@@ -133,7 +143,7 @@ if __name__ == "__main__":
     
     
     if params.model_name == "NeuralPsi":
-        models = [ODEFunc(A = A, d = params.d, h=params.h, h2=params.h2,h3 = params.h3,
+        models = [ODEFunc(A = L, d = params.d, h=params.h, h2=params.h2,h3 = params.h3,
                             bias = True,  Q_factorized= True).to(device) for i in range(M_tot)] 
         
     
@@ -141,14 +151,14 @@ if __name__ == "__main__":
     # Training
     #####
     nsample = 200
-    for exp_iter in range(2,M_tot):
+    for exp_iter in range(M_tot):
         print(exp_iter)
         func = models[exp_iter]
         optimizer = torch.optim.Adam(func.parameters(), lr=params.lr, weight_decay=params.weight_decay)
         scheduler = ReduceLROnPlateau(optimizer, 'min', patience= 50, cooldown=10)
         x_train_exp = x_train_tot[exp_iter]
         y_train_exp = y_train_tot[exp_iter]
-        for itr in range(1601):
+        for itr in range(params.epochs + 1 ):
             optimizer.zero_grad()
             # take bootstrapped sample 
             index = torch.randint(0,n_bootstrap,(1,nsample))
@@ -183,6 +193,6 @@ if __name__ == "__main__":
                 with torch.no_grad():
                     print(itr, loss)
     
-        save_results(model = func, folder_name = results_root+f"_{exp_iter}", adj = A, training_parameters = params,x_train = x_train, y_train = y_train)
+        save_results(model = func, folder_name = results_root+f"_{exp_iter}", adj = L, training_parameters = params,x_train = x_train, y_train = y_train)
 
     

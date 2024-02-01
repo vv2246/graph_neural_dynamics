@@ -92,7 +92,7 @@ class Dynamics(nn.Module):
         self.nbr_interaction = nbr_interaction
         self.in_degree = A.sum(0)[:,None]
         # self.epsilon = torch.ones()
-
+        self.size = A.shape[0]
         if model == "RO":
             
             self.epsilon = 0.1
@@ -155,10 +155,11 @@ class Dynamics(nn.Module):
             c = -0.04
             x1,x2 = x[:,0][:,None], x[:,1][:,None]
             x1j = x[:,0][:,None]
-            F_nbr = - torch.mm(self.L, x1j) / self.in_degree
-            F_nbr = torch.where(torch.isfinite(F_nbr), F_nbr, torch.tensor([0.0]))
-
-            # print((F_nbr))
+            F_nbr = - torch.mm(self.A, x1j) / self.in_degree
+            
+            # print((F_nbr),"\n",self.in_degree, "\n",F_nbr/self.in_degree)
+            F_nbr[torch.isinf(F_nbr)] = 0
+            # print(F_nbr)
             F1 = x1 - x1**3 - x2 - epsilon * F_nbr
             # print(F1.shape )
             F2 = a + b * x1 + c * x2
@@ -169,27 +170,50 @@ class Dynamics(nn.Module):
             
         if self.model == "HR":
             Iext = 3.24 # external current 
-            Vsyn = 2
+            Vsyn1 = 2
             Lambda = 10
+            # Vsyn2 = -1.5
             Omegasyn = 1
-            c = 1
-            u = 5
             r = 0.005
             x0 = -1.6
-            epsilon = 0.30
-            # epsilon2 = -0.15
+            epsilon = 0.15
+            # # epsilon2 = -0.15
             a = 1
             b = 3
-            s=4
+            c = 1
+            u = 5
+            s = 4
             x1,x2,x3 = x[:,0][:,None], x[:,1][:,None], x[:,2][:,None]
-            x1j = x[:,0][:,None]
-            mu = (1+ torch.exp(-(Lambda * (x1j - Omegasyn ))))**(-1)
-            F_nbr =  epsilon * (Vsyn - x1) * torch.mm(self.A, mu)
+            # print(x1,"\n", x2, "\n" ,x3)
+            # x1j = x[:,0][:,None]
+            mu = (1+ torch.exp(-(Lambda * (x1 - Omegasyn ))))**(-1)
+            F_nbr =  epsilon * (Vsyn1 - x1) * torch.mm(self.A, mu)
             
+            # print(F_nbr)
             F1 = x2 - a* (x1**3) + b * (x1**2) - x3  + Iext + F_nbr
             F2 = c - u * (x1**2) - x2
-            F3 = r* ( s* (x1-x0) - x2)
+            F3 = r* ( s* (x1-x0) - x3)
             f = torch.vstack([F1.squeeze(),F2.squeeze(),F3.squeeze()]).T
+            
+            # Initialize derivatives
+            # dx_dt = torch.zeros(self.size)
+            # dy_dt = torch.zeros(self.size)
+            # dz_dt = torch.zeros(self.size)
+            
+            # for i in range(self.size):
+            #     # Calculate the influence from neighbors
+            #     interaction_sum = torch.sum(self.A[i, :] * (x1 - x1[i]))
+                
+            #     # Hindmarsh-Rose model equations with network interactions
+            #     dx_dt[i] = x2[i] - a*x1[i]**3 + b*x1[i]**2 - x3[i] + Iext + interaction_sum
+            #     dy_dt[i] = c - d*x1[i]**2 - x2[i]
+            #     dz_dt[i] = r * (s*(x1[i] - x0) - x3[i])
+            
+            # # Flatten the derivatives to match solve_ivp requirements
+            # f = torch.vstack([dx_dt.squeeze(),dy_dt.squeeze(),dz_dt.squeeze()]).T
+            
+            
+            
         
         if self.model not in [ "HR" ,"RO","FHN"]:
             f = 0
@@ -235,38 +259,42 @@ class ChaoticDynamics(nn.Module):
 if __name__ == "__main__":
 
     import numpy as np
-    n=3
-    d=2
+    n=2
+    d=3
 
-    A = torch.FloatTensor(np.matrix('0 1 0; 0 0 0;1 1 0'))
+    # A = torch.FloatTensor(np.matrix('0 1 0; 0 0 0;1 1 0'))
+    A = torch.FloatTensor([[0,1],[0,0]])
+    g= nx.from_numpy_array(np.array(A), create_using=nx.DiGraph)
+    nx.draw(g)
+    plt.show()
     b = torch.FloatTensor(np.matrix('0.0043;0.0043;0.0043;0.0043'))
-    dyn = Dynamics(A=A, model  = "FHN")
+    dyn = Dynamics(A=A, model  = "HR")
     # dyn = Dynamics_individual(A=A)
     x0 = torch.rand([n,d])
     
     ###dynamics
-    T=30
-    time_tick= 100
+    T=1000
+    time_tick= 3000
     t = torch.linspace(0., T, time_tick)
     
     dyn(0,x0)
     solution_numerical = torchdiffeq.odeint( dyn, x0, t, method="dopri5")
     
-        
+    solution_numerical= solution_numerical[1000:,:,:]
     plt.plot(solution_numerical[:,0,0])
     plt.plot(solution_numerical[:,0,1])
-    # plt.plot(solution_numerical[:,0,2])
+    plt.plot(solution_numerical[:,0,2])
     plt.show()
     
-    plt.plot(solution_numerical[:,1,0])
-    plt.plot(solution_numerical[:,1,1])
-    # plt.plot(solution_numerical[:,1,2])
+    # plt.plot(solution_numerical[:,1,0])
+    # plt.plot(solution_numerical[:,1,1])
+    # # plt.plot(solution_numerical[:,1,2])
     
-    plt.show()
+    # plt.show()
     
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.plot(solution_numerical[:, 0, 0].numpy(), solution_numerical[:,0, 1].numpy(), solution_numerical[:,0, 2].numpy())
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot(solution_numerical[:, 0, 0].numpy(), solution_numerical[:,0, 1].numpy(), solution_numerical[:,0, 2].numpy())
     
     # print(f"numerical solution {solution_numerical.shape}")
     # plt.plot(solution_numerical.T)
