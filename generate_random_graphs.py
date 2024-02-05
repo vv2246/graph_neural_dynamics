@@ -39,3 +39,21 @@ while connected == False:
     if nx.is_connected(g) == True:
         connected = True 
 nx.write_gml(g, f"graphs/erdos_renyi_N_{N}_p_{p}.gml")
+
+
+
+N = 3
+p = 1
+
+connected = False
+while connected == False:
+    g = nx.erdos_renyi_graph(N, p)
+    if nx.is_connected(g) == True:
+        connected = True 
+nx.write_gml(g, f"graphs/erdos_renyi_N_{N}_p_{p}.gml")
+
+
+g = nx.DiGraph()
+g.add_edges_from([(1,2),(2,3), (3,1), (1,0)])
+nx.write_gml(g, f"graphs/simple_directed.gml")
+

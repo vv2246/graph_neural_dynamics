@@ -27,8 +27,6 @@ class ODEFunc(nn.Module):
             nn.Tanh(),
             nn.Linear(h, h, bias = bias),
             nn.Tanh(),
-            nn.Linear(h, h, bias = bias),
-            nn.Tanh(),
             nn.Linear(h, d, bias = bias),
         )
 
@@ -117,18 +115,23 @@ class ODEFunc(nn.Module):
         y2 = self.nn_fun2(x)
         y1_tmp = torch.transpose(y1 ,0 ,2)
         y2_tmp = torch.transpose(y2 ,0 ,2)
+        # print(y2_tmp.shape)
         xx = torch.bmm(torch.transpose(y1_tmp, 1 ,2) ,y2_tmp)
         # print(xx.shape)
         if adj == None:
             nn_Q_out = self.A * (xx)
         else:
             nn_Q_out = adj * xx
+            
+        # print(nn_Q_out.sum(1))
         nn_Q_flatten_input = torch.transpose( torch.unsqueeze(nn_Q_out.sum(1) , 1) , 0, 2).float()
-        # print("bla",nn_Q_flatten_input.shape)
+        # print(nn_Q_flatten_input.shape)
+        # print(nn_Q_flatten_input)
         agg_out = self.agg(nn_Q_flatten_input)
         # print(agg_out.shape, )
-        self.agg_input_min = min(self.agg_input_min, nn_Q_flatten_input.min().item())
-        self.agg_input_max = max(self.agg_input_max, nn_Q_flatten_input.max().item())
+        # print(out, agg_out)
+        # self.agg_input_min = min(self.agg_input_min, nn_Q_flatten_input.min().item())
+        # self.agg_input_max = max(self.agg_input_max, nn_Q_flatten_input.max().item())
         res = 0
         if self_interaction == True:
             res += out
@@ -155,13 +158,25 @@ class ODEFuncFull(nn.Module):
     
 if __name__ == "__main__":
     
+    # d, h, h2, h3, h4 = 90, 40, 60, 50, 30
+    # n = 5
+    # x = torch.randn([n , 1 , d], requires_grad= True) # n x 1 x d    
+    # g = nx.erdos_renyi_graph(n , 0.5)
+    # A = torch.tensor(nx.to_numpy_array(g))
+    # func = ODEFunc(A, d, h, h2, h3, h4, Q_factorized = True)
+    # func( 0 , x, A) 
+    
     d, h, h2, h3, h4 = 90, 40, 60, 50, 30
-    n = 5
+    n = 3
     x = torch.randn([n , 1 , d], requires_grad= True) # n x 1 x d    
-    g = nx.erdos_renyi_graph(n , 0.5)
+    g = nx.erdos_renyi_graph(n ,1)
+    g = nx.DiGraph()
+    g.add_edge(0,1)
+    g.add_edge(2,1)
     A = torch.tensor(nx.to_numpy_array(g))
     func = ODEFunc(A, d, h, h2, h3, h4, Q_factorized = True)
     func( 0 , x, A) 
+    
     
     
     

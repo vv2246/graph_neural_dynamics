@@ -22,9 +22,9 @@ if __name__ == "__main__":
     torch.manual_seed(42)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    multiple_nn = True
+    multiple_nn = False
     if multiple_nn:
-        M_tot = 1
+        M_tot = 20
         bootstrap_fraction = 0.9
     else:
         M_tot = 1
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         
     dynamics_name = "FHN"
     network_name = "celegans_directed_wcc"
-    # network_name = "erdos_renyi_N_10_p_0.1"
+    network_name = "simple_directed"
     model_name = "NeuralPsi"
     results_root = f"results/{dynamics_name}_{network_name}_multiple_nn_{multiple_nn}"
     g = nx.read_gml(f"graphs/{network_name}.gml")
@@ -44,21 +44,22 @@ if __name__ == "__main__":
     #     else:
     #         d.add_edge(j,i)
             
-        
+    # g= nx.to_undirected(g)
     
     A = torch.FloatTensor(np.array(nx.adjacency_matrix(g).todense()))
     L = A / A.sum(0)
     L[torch.isnan(L)] = 0
+    L[torch.isinf(L)] = 0
     
     regularizer_lambda = 1.0 # regularizer that minimizes variance in the loss across nodes
     params = ModelParameters(
         dynamics_name = dynamics_name,
         model_name =model_name,
         train_distr= torch.distributions.Beta(torch.FloatTensor([1]),torch.FloatTensor([1])),
-        epochs = 10000,
+        epochs = 1000,
         train_samples = 2000,
         size = A.shape[0],
-        lr = 0.002,  # learning rate for training
+        lr = 0.005,  # learning rate for training
         weight_decay = 0.00, # weight decay for training
         h = 30, #self interaction embedding dim
         h2 = 30 ,#nbr interaction embedding dim
@@ -79,7 +80,7 @@ if __name__ == "__main__":
         params.R = 5
         dyn = Dynamics(A=A, B= params.B, R =params.R,  model = params.dynamics_name)
     if params.dynamics_name == "Diffusion":
-        params.B = 0.5
+        params.B = 0.1
         dyn = Dynamics(A=A, B= params.B,   model = params.dynamics_name)
     if params.dynamics_name == "PD":
         params.B = 2
@@ -100,21 +101,21 @@ if __name__ == "__main__":
     # Generate data
     ######
     dt_base = 10**-2
-    T = 100
+    T = 50
     t = torch.linspace(0,T, int(T/dt_base))
     scale_obs = 0.0
     y_nonoise = []
     y_train = []
     x_train = []
     t_train = []
-    niter = 5#int( params.train_samples / t.shape[0] )
+    niter = 1#int( params.train_samples / t.shape[0] )
     
     for i in range(niter):
         
         x0 = torch.rand([params.size,params.d])
             
         y = odeint( dyn, x0, t, method="dopri5")#[20000:]
-        plt.plot(y[:,0,0])
+        plt.plot(y[:,:,0])
         plt.show()
         try:
             m = torch.distributions.normal.Normal(loc = 0, scale = scale_obs)
@@ -123,10 +124,12 @@ if __name__ == "__main__":
             noise = 0
             print("var is zero")
         y_noise = y + noise
-        y_train_i = (y_noise[1:,:,:] - y_noise[:-1,:,:])/dt_base # x_t+1 -x_t / dt
+        y_train_i =(y_noise[1:,:,:] - y_noise[:-1,:,:])/t.diff()[0] # x_t+1 -x_t / dt
         x_train_i = y_noise[:-1,:,:] 
         for i in range(len(y_train_i)):
+            
             y_train.append(y_train_i[i])
+            # y_train.append( dyn(0,x_train_i[i]))
             x_train.append(x_train_i[i])
                 
     ntrain = len(y_train)
@@ -151,27 +154,36 @@ if __name__ == "__main__":
     # Training
     #####
     nsample = 200
+    xtest = torch.rand([params.size, params.d])
     for exp_iter in range(M_tot):
         print(exp_iter)
         func = models[exp_iter]
         optimizer = torch.optim.Adam(func.parameters(), lr=params.lr, weight_decay=params.weight_decay)
         scheduler = ReduceLROnPlateau(optimizer, 'min', patience= 50, cooldown=10)
+        # x_train_exp = torch.stack(x_train_tot[exp_iter])
+        # y_train_exp = torch.stack( y_train_tot[exp_iter])
+        
+        
         x_train_exp = x_train_tot[exp_iter]
         y_train_exp = y_train_tot[exp_iter]
+        
         for itr in range(params.epochs + 1 ):
             optimizer.zero_grad()
             # take bootstrapped sample 
             index = torch.randint(0,n_bootstrap,(1,nsample))
+            # pred_y = func(0,x_train_exp[index[0]].transpose(0,1))
+            # y_train_batch = y_train_exp[index[0]].transpose(0,1)#
+            # l_idx = torch.abs(pred_y - y_train_batch)
+            
             pred_y = [func(0, x_train_exp[i][:,None,:]) for i in index[0]]
             y_train_batch = [y_train_exp[i] for i in index[0]]
-            
-            # compute loss
             v1= torch.stack(pred_y).squeeze()
-            v2 = torch.stack(y_train_batch)
+            v2 = torch.stack(y_train_batch).squeeze()
             l_idx =torch.abs(v1-v2)
             
             # weigh wrt to variance in the loss
             node_var = l_idx.var(1)
+            # node_var = l_idx.var(0)
             variance_reg = (node_var.mean() )
             loss = variance_reg * regularizer_lambda  + l_idx.mean()
             
@@ -192,6 +204,14 @@ if __name__ == "__main__":
             if itr % 100 == 0:
                 with torch.no_grad():
                     print(itr, loss)
+                    y_test = odeint( dyn, xtest, t[:], method="dopri5")
+                    y_test_pred = odeint(func, xtest[:,None], t[:], method="dopri5").detach().squeeze()
+                    
+                    plt.plot(y_test[:,0,0])
+                    plt.plot(y_test_pred[:,0,0], linestyle= "--")
+                    plt.show()
+                    
+
     
         save_results(model = func, folder_name = results_root+f"_{exp_iter}", adj = L, training_parameters = params,x_train = x_train, y_train = y_train)
 

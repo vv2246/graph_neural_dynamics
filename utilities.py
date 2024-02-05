@@ -13,7 +13,7 @@ import torch.nn as nn
 # from torch_geometric.utils import from_networkx
 from torch_geometric.nn import GCNConv, ChebConv, SAGEConv, SimpleConv, ResGatedGraphConv, GraphConv,GATConv, GatedGraphConv
 from torch_geometric.utils import from_networkx
-
+import random
 
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, model_name = "GCNConv"):
@@ -164,6 +164,91 @@ def save_results(model, folder_name, adj,training_parameters , x_train, y_train)
     #     pickle.dump([x_train, y_train], f)
     torch.save(torch.stack(x_train),f"{folder}/training_data_x.pt")
     torch.save(torch.stack(y_train),f"{folder}/training_data_y.pt")
+
+
+
+def set_seeds():
+    """Sets seeds for reproducibility."""
+    np.random.seed(42)
+    random.seed(42)
+    torch.manual_seed(42)
+
+
+
+def compute_d_statistics_one_sample(list_of_experiments, xi , M ,  direct_fun = False , A = None):
+    # pred_list = []
+    index = torch.randint(0,len(list_of_experiments),(1,M))
+    pred = []
+    for m in index[0]:
+        experiment = list_of_experiments[m]
+        if direct_fun :
+            pred.append(experiment(None, xi[:,None], A))
+        else:
+            pred.append(experiment.func(None, xi[:,None],A))
+    pred = torch.stack(pred).squeeze()
+    pred = (pred.var(0).detach()).numpy()
+    # pred_list.append(pred)
+    return pred
+
+
+def compute_d_statistics(list_of_experiments, x_test , M ,  direct_fun = False , A = None, number_of_draws = 100, n_id = None): #number_iterations = 1,
+    pred_list = []
+    nsamples = len(x_test)
+    nnodes = x_test[0].shape[0]
+    for i in range(number_of_draws):
+        sample_idx = torch.randint(0,nsamples,[1])[0]
+        if n_id == None:
+            node_idx = torch.randint(0,nnodes,[1])[0]
+        else:
+            node_idx = n_id
+        xi = x_test[sample_idx]
+        pred = compute_d_statistics_one_sample(list_of_experiments, xi, M , direct_fun, A )
+        pred = torch.tensor(np.array(pred)).squeeze()[node_idx].mean().detach().numpy() #.mean(0).detach().numpy()[node_idx]
+        pred_list.append(float(pred))
+    return pred_list
+
+def get_acc_ratio_sample_vs_null(null_samples, testing_samples, alpha):
+    p_vals = []
+    for niter in range(len(testing_samples)):
+        dx = testing_samples[niter]
+        p_val = compute_pval(dx, np.array(null_samples))
+        p_vals.append(p_val)
+    accepted = acceptance_ratio(p_vals, alpha)
+    return accepted
+
+def compute_pval( x_dval , d_stat_values): 
+    return np.sum( d_stat_values >= x_dval ) / len(d_stat_values)
+    
+
+def acceptance_ratio(p_vals, alpha):
+    return sum(np.array( p_vals ) >= alpha )/len(p_vals) 
+
+# def compute_critical_val( d_stat_values , alpha):
+#     x = 0.0
+#     d_stat_values =  np.array(d_stat_values)
+#     delta = 1/(len(d_stat_values))
+#     while True:
+#         pval = compute_pval(x, d_stat_values)
+#         if pval <= alpha:
+#             return x
+#         x += delta
+
+
+def compute_critical_val( d_stat_values , alpha):
+    x, y = ecdf(d_stat_values)
+    y = 1-y
+    y[y < alpha] = 10
+    return x[np.argwhere(y==10)[0]][0]
+
+def ecdf(data):
+    """Compute ECDF for a one-dimensional array of measurements."""
+    # Number of data points: n
+    n = len(data)
+    # x-data for the ECDF: x
+    x = np.sort(data)
+    # y-data for the ECDF: y
+    y = np.arange(1, n+1) / n
+    return x, y
 
         
         
