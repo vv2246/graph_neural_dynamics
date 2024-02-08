@@ -19,10 +19,10 @@ with open("nodes_pos.csv", "w") as csvfile:
      csv_writer.writerow([row[1], float(row[2].split(",")[0][7:]), float(row[2].split(",")[1][:-2])])
 
 
-df = pd.read_csv("nodes_pos.csv", index_col= False)
+df = pd.read_csv("nodes_pos.csv")
 
-xpos = dict(zip(df['label'], df['xpos']))
-ypos = dict(zip(df['label'], df['ypos']))
+xpos = dict(zip(df.index, df['xpos']))
+ypos = dict(zip(df.index, df['ypos']))
 
 # # import the list of edges from edges.csv
 df = pd.read_csv(zipfile.open('edges.csv'))

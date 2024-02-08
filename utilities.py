@@ -186,9 +186,11 @@ def compute_d_statistics_one_sample(list_of_experiments, xi , M ,  direct_fun = 
         else:
             pred.append(experiment.func(None, xi[:,None],A))
     pred = torch.stack(pred).squeeze()
+    print(pred)
     pred = (pred.var(0).detach()).numpy()
     # pred_list.append(pred)
     return pred
+
 
 
 def compute_d_statistics(list_of_experiments, x_test , M ,  direct_fun = False , A = None, number_of_draws = 100, n_id = None): #number_iterations = 1,
@@ -203,8 +205,8 @@ def compute_d_statistics(list_of_experiments, x_test , M ,  direct_fun = False ,
             node_idx = n_id
         xi = x_test[sample_idx]
         pred = compute_d_statistics_one_sample(list_of_experiments, xi, M , direct_fun, A )
-        pred = torch.tensor(np.array(pred)).squeeze()[node_idx].mean().detach().numpy() #.mean(0).detach().numpy()[node_idx]
-        pred_list.append(float(pred))
+        pred = torch.tensor(np.array(pred)).squeeze()[node_idx].detach().numpy() #.mean(0).detach().numpy()[node_idx]
+        pred_list.append((pred))
     return pred_list
 
 def get_acc_ratio_sample_vs_null(null_samples, testing_samples, alpha):

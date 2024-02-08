@@ -1,10 +1,8 @@
 from utilities import  load_results, compute_d_statistics_one_sample,compute_critical_val,  compute_d_statistics, compute_pval ,set_seeds,acceptance_ratio, get_acc_ratio_sample_vs_null
 from dynamics import Dynamics
-# from test_significance import test_significance_functions
 import networkx as nx
 import matplotlib.pyplot as plt
 import warnings
-# from small_example_repurified import *
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import seaborn as sns
 import pandas as pd
@@ -14,41 +12,52 @@ import numpy as np
 import os
 
 
-
-def generate_statistics(A_test , delta_test, true_dyn, time_array,  d_stat_full_sample,
-                        neural_net_list, M , alpha_sig = 0.05, number_of_iterations =10 ):
-    res = []
-    for niter in range(number_of_iterations) :
-        x0 = m.sample([A_test.shape[0]]) + delta_test
-        y = odeint( true_dyn, x0, time_array, method= 'dopri5' ).squeeze().t()
-        # sol = pooled_integral(neural_net_list, x0[:,None], time_array, A_test)
-        idx = np.random.randint(M)
-        sol = odeint(lambda y, t: neural_net_list[idx](y, t, A_test), x0[:,None], time_array, method="dopri5").squeeze().detach()
-        loss = [] 
-        x_pred  = [] 
-        for k in range(y.shape[1]):
-            x_pred.append(sol[k,:][:,None]) 
-            # loss.append(torch.stack( [ abs(dyn(0, y[:,k][:,None]).squeeze() - neural_net_list[idx](0, y[:,k][:,None,None], A_test ).squeeze()) ])#for func in neural_net_list ]) )
-            loss.append(abs(dyn(0, y[:,k][:,None]).squeeze() - neural_net_list[idx](0, y[:,k][:,None,None], A_test ).squeeze()))#for func in neural_net_list ]) )
-        
-        loss = float(torch.stack(loss).mean().detach().numpy())
-        sigpred = compute_d_statistics(list_of_experiments = neural_net_list, 
-                                       x_test = x_pred, M = M , direct_fun = True, 
-                                       A = A_test, number_of_draws = 100)
-        accepted = get_acc_ratio_sample_vs_null(null_samples = d_stat_full_sample, 
-                                       testing_samples = sigpred, alpha = alpha_sig )
-        res.append([true_dyn.model, delta_test, loss, accepted])
-    return res 
+# def compute_d_statistics_one_sample(list_of_experiments, xi , M ,  direct_fun = False , A = None):
+#     # pred_list = []
+#     index = torch.randint(0,len(list_of_experiments),(1,M))
+#     # print(index)
+#     pred = []
+#     for m in index[0]:
+#         experiment = list_of_experiments[m]
+#         if direct_fun :
+#             pred.append(experiment(None, xi[:,None], A))
+#         else:
+#             pred.append(experiment.func(None, xi[:,None],A))
+#     pred = torch.stack(pred).squeeze()
+#     # print(pred.shape)
+#     pred = (pred.var(0).detach()).numpy()
+#     # print(pred)
+#     # pred_list.append(pred)
+#     return pred
 
 
 
+# def compute_d_statistics(list_of_experiments, x_test , M ,  direct_fun = False , A = None, number_of_draws = 100, n_id = None): #number_iterations = 1,
+#     pred_list = []
+#     nsamples = len(x_test)
+#     nnodes = x_test[0].shape[0]
+#     for i in range(number_of_draws):
+#         sample_idx = torch.randint(0,nsamples,[1])[0]
+#         if n_id == None:
+#             node_idx = torch.randint(0,nnodes,[1])[0]
+#         else:
+#             node_idx = n_id
+#         xi = x_test[sample_idx]
+#         # print(xi)
+#         pred = compute_d_statistics_one_sample(list_of_experiments, xi, M , direct_fun, A )
+#         # print(pred)
+#         pred = torch.tensor(np.array(pred)).squeeze()[node_idx].detach().numpy() #.mean(0).detach().numpy()[node_idx]
+#         # print(pred)
+#         pred_list.append((pred))
+#     return pred_list
     
 
 if __name__ == "__main__":
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
-
+    generate_solutions = False
     # load neural networks
+    set_seeds()
     
     adjacencies = []
     x_train_full = []
@@ -63,46 +72,98 @@ if __name__ == "__main__":
         y_train_full.append(y_train)
         # break
     
-    # generate statistics from training
-    d_stat_full_sample = compute_d_statistics(list_of_experiments = nn_list,  x_test = x_train , M = 20, 
-                                              direct_fun = True, number_of_draws = 100, A = A)
+    network_name = "celegans_directed_wcc"
+    # network_name = "simple_directed"
+    # model_name = "NeuralPsi"
+    # results_root = f"results/{dynamics_name}_{network_name}_multiple_nn_{multiple_nn}"
+    g = nx.read_gml(f"graphs/{network_name}.gml")
     
-    # generate statistics in a new setting
+    # generate statistics from training
+    d_stat_full_sample = np.stack(compute_d_statistics(list_of_experiments = nn_list,  x_test = x_train , M = 5, 
+                                              direct_fun = True, number_of_draws = 1000, A = A))
+    
+    d_stat_full1 =  d_stat_full_sample[:,0]
+    d_stat_full2 =  d_stat_full_sample[:,1]
     dt_base = 10**-2
-    T = 50
+    T = 100
     t = torch.linspace(0,T, int(T/dt_base))
-    g_test = nx.read_gml(f"graphs/barabasi_albert_N_100_m_3.gml")
-    A_test = torch.FloatTensor(np.array(nx.adjacency_matrix(g_test).todense()))
+    A_test = A#.copy()
     L_test =  A_test/  (A_test.sum(0))
     L_test[torch.isnan(L_test)] = 0
-    dyn_test =  Dynamics(A=A_test,   model = params.dynamics_name)
+    
     x0_test = torch.rand([A_test.shape[0],params.d])
-    
-    # compute all solutions 
-    solutions = []
-    for func in nn_list:
-        sol = odeint(lambda y, t: func(y, t, L_test), x0_test[:,None], t, method="dopri5").squeeze().detach()
-        solutions.append(sol)
-    
-    
-    plt.plot(t, torch.stack(solutions).var(0).mean(1))
-    plt.ylabel("$E[Var[\\mathbf{x}(t)]_m]_{i}$")
-    plt.xlabel("$t$")
-    plt.show()
-    
-    for t_idx in range(t.shape[0]):
-        xi = sol[t_idx]
-        d_stat = compute_d_statistics_one_sample(nn_list, xi, 20,direct_fun = True, A = A_test)
-        break
-        
-    sigpred = compute_d_statistics(list_of_experiments = nn_list, 
-                                    x_test = sol, 
-                                    M = 20 , direct_fun = True, A = A_test, number_of_draws = 100)
-    
-    
-    
-    
-    dyn_test =  Dynamics(A=A_test,   model = params.dynamics_name)
-    y_pred = odeint( dyn_test, x0_test, t, method="dopri5")
+    sol = odeint(lambda y, t: nn_list[0](y, t, L_test), x0_test[:,None], t, method="dopri5").squeeze().detach()
     
 
+    dyn_test =  Dynamics(A=A_test,   model = params.dynamics_name)
+    y_pred = odeint( dyn_test, x0_test, t, method="dopri5")
+
+    i = 0
+    fig,ax = plt.subplots(nrows = 2, figsize= (15,6),sharex= True)
+    ax[0].plot(t,sol[:,i,0], label="True", color = "darkorange", linestyle = "-", lw = 2,alpha =1)
+    ax[1].plot(t,sol[:,i,1], label="True", color = "darkorange", linestyle = "-", lw = 2,alpha = 1)
+    # plt.plot(t,solutions[1,:,0,0], label="True", color = "orange", linestyle = "-", lw = 0.5,alpha = 0.5)
+    ax[0].plot(t, y_pred[:,0,0], color = "blue", lw = 2, linestyle = "--")
+    ax[1].plot(t, y_pred[:,0,1], color = "blue", lw = 2, linestyle = "--")
+    ax[0].set_title(f"$i={i}$")
+    # plt.show()
+    
+    ax[1].set_xlabel("$t$")
+    ax[0].set_ylabel("$x_{i,0}(t)$")
+    ax[1].set_ylabel("$x_{i,1}(t)$")
+    ax[0].set_ylim(-2.5,2.5)
+    ax[1].set_ylim(-2.5,2.5)
+    ax[1].set_xlim(0,100)
+    plt.savefig(f"figures/node_{i}_timeseries.pdf")
+    plt.show()
+    
+    fig,ax = plt.subplots(nrows = 1, figsize= (6,6),sharex= True)
+    ax.plot(sol[:,i,0], sol[:,0,1],label="True", color = "darkorange", linestyle = "-", lw = 2,alpha =1)
+    ax.plot(y_pred[:,i,0], y_pred[:,0,1],color = "blue", lw = 2, linestyle = "--")
+    ax.set_xlabel("$x_{i,0}(t)$")
+    ax.set_ylabel("$x_{i,1}(t)$")
+    ax.set_ylim(-1.5,2)
+    ax.set_xlim(-2,1.5)
+    plt.tight_layout()
+    plt.savefig(f"figures/node_{i}_phase_portrait.pdf")
+    plt.show()
+    
+    d_stat_full_sample = np.stack(compute_d_statistics(list_of_experiments = nn_list,  x_test = x_train , M = 5, 
+                                              direct_fun = True, number_of_draws = 1000, A = A, n_id= i ))
+    
+    d_stat_test = np.stack(compute_d_statistics(list_of_experiments = nn_list,  x_test = sol , M = 5, 
+                                              direct_fun = True, number_of_draws = 1000, A = A,n_id = i))
+    d_stat_test1 = d_stat_test[:,0]
+    d_stat_test2 = d_stat_test[:,1]
+    
+    fig,axs = plt.subplots(nrows = 2 , figsize= (6,8),sharey=True)
+    ax , ax2 = axs
+    sns.ecdfplot(d_stat_test1, complementary= True, color = "darkorange", linewidth=2,alpha= 1, ax = ax)
+    sns.ecdfplot(d_stat_full1, complementary = True, color = "blue", linewidth=2,alpha= 1,ax = ax)
+    ax.set_xlim(0,compute_critical_val(d_stat_full_sample[:,0] , alpha =0.05))
+    accepted1 = get_acc_ratio_sample_vs_null(null_samples = d_stat_full1, testing_samples = d_stat_test1, alpha = 0.05)
+    ax.set_title(f"$k=0$, {round(accepted1*100)}% accepted")#" accepted " f"{round(accepted1*100)}%")
+    # ax.set_xticks([0, 0.002, 0.004])
+    ax.set_xlabel("$d$")
+    
+    # fig,ax = plt.subplots(figsize= (6,6))
+    sns.ecdfplot(d_stat_test2, complementary= True, color = "darkorange", linewidth=2,alpha= 1, ax = ax2)
+    sns.ecdfplot(d_stat_full2, complementary = True, color = "blue", linewidth=2,alpha= 1,ax = ax2)
+    ax2.set_xlim(0,compute_critical_val(d_stat_full2 , alpha =0.05))
+    accepted2 = get_acc_ratio_sample_vs_null(null_samples = d_stat_full2, testing_samples = d_stat_test2, alpha = 0.05)
+    ax2.set_title(f"$k=1$, {round(accepted2*100)}% accepted")# accepted " f"{round(accepted1*100)}%")
+    ax2.set_xlabel("$d$")
+    # ax2.set_xticks([0, 0.0001,0.0002])
+    plt.tight_layout()
+    plt.savefig(f"figures/d_statistic_node_{i}.pdf")
+    plt.show()
+
+
+    y_train_pred = torch.stack([ func(0,x_train[i][:,None,:]) for i in range(x_train.shape[0])]).squeeze()
+    train_loss = abs(y_train - y_train_pred).mean(0).detach()
+    
+    fig,ax = plt.subplots()
+    ax.hist(train_loss[:,1])
+    
+    test_loss = abs(sol - y_pred).mean(0)
+    ax.hist(test_loss[:,1])
