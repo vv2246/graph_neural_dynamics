@@ -9,7 +9,7 @@ import warnings
 from NeuralPsiBlock import ODEFunc
 import random
 from tqdm import tqdm
-from utilities import save_results, ModelParameters, GCN, GCN_single
+from gnns_utilities import save_results, ModelParameters, GCN, GCN_single
 from torch_geometric.utils import from_networkx
     
 if __name__ == "__main__":
