@@ -11,7 +11,6 @@ def compute_d_statistics(list_of_experiments, x_test , M , number_of_draws = 100
         pred_list.append(float(pred))
     return np.array(pred_list)
     
-
 def compute_d_statistics_one_sample(list_of_experiments, xi , M, adj = None , node = None):
     index = torch.randperm(len(list_of_experiments))[:M]
     pred = []
@@ -19,15 +18,7 @@ def compute_d_statistics_one_sample(list_of_experiments, xi , M, adj = None , no
         experiment = list_of_experiments[int(m)] 
         pred.append(experiment(0, xi[:,None], adj = adj))
     pred = torch.stack(pred).squeeze()
-    # pred = pred - pred.mean(0)
-    # pred = float((pred.std(0).mean().detach()).numpy())
-    # pred = pred.std(0)/abs(pred.mean(0))
-    pred = pred.var(0)#/ (pred.max(dim=0).values - pred.min(dim=0).values)#/(abs(xi).squeeze())#/(pred.mean(0)**2)
-    
-    # Calculate RPE: (std of predictions / mean of predictions)
-    # mean_pred = pred.mean(0)
-    # std_pred = pred.std(0)
-    # pred = std_pred / torch.abs(mean_pred)
+    pred = pred.var(0)
     if node == None:
         return float(pred[torch.randint(0,len(xi),[1])[0]].detach())
     else:
@@ -45,13 +36,6 @@ def get_acc_ratio_sample_vs_null(null_samples, testing_samples, alpha):
 
 def compute_pval( x_dval , d_stat_values): 
     return np.sum( d_stat_values >= np.float(x_dval))  / len(d_stat_values)
-    
-
-def compute_pval2(x_dval, d_stat_values):
-    right_tail_pval = np.sum(d_stat_values >= np.float(x_dval)) / len(d_stat_values)
-    left_tail_pval = np.sum(d_stat_values <= np.float(x_dval)) / len(d_stat_values)
-    two_sided_pval = 2 * min(right_tail_pval, left_tail_pval)
-    return two_sided_pval
 
 def acceptance_ratio(p_vals, alpha):
     return sum(np.array( p_vals ) >= alpha )/len(p_vals) 
